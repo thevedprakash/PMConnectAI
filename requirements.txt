@@ -8,3 +8,4 @@ pydantic == 1.10.9
 pandas == 2.2.2
 slackclient == 2.9.4
 emoji == 2.11.1
+google-generativeai
