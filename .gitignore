@@ -1,4 +1,4 @@
 .env
 venv
-
+log.txt
 # pip3 install -U langchain-google-genai

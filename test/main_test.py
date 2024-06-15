@@ -1,26 +1,19 @@
-import os
-import time
-import emoji
-import slack
 import pandas as pd
-
 from slack_integration import get_user_id, get_latest_message
 from calendly import generate_calendly_invitation_link
 from conversation import GPT
 from config import Config
-
-import google.generativeai as genai
-
+import os
+import time
+import emoji
 from langchain_experimental.generative_agents.generative_agent import GenerativeAgent
 from langchain_experimental.generative_agents.memory import GenerativeAgentMemory
-# from langchain.chat_models import AzureChatOpenAI
-from langchain_google_genai import ChatGoogleGenerativeAI
-
+from langchain.chat_models import AzureChatOpenAI
 from utils import create_new_memory_retriever
 from langchain.prompts import PromptTemplate
 from langchain.chains import LLMChain
 from langchain.chains.summarize import load_summarize_chain
-
+import slack
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -44,10 +37,8 @@ def main():
     # Create a Slack client using the token from environment variables.
     client = slack.WebClient(token=os.environ["SLACK_TOKEN"])
     # Initialize two instances of AzureChatOpenAI with different configurations.
-    llm = ChatGoogleGenerativeAI(model='gemini-1.0-pro', temperature =0.2)
-    llm_lucas = ChatGoogleGenerativeAI(model='gemini-1.0-pro', temperature=0)
-    
-    
+    llm = AzureChatOpenAI(openai_api_version=os.environ["AZURE_OPENAI_API_VERSION"], azure_deployment=os.environ["AZURE_OPENAI_DEPLOYMENT_NAME"], temperature = 0.2)
+    llm_lucas = AzureChatOpenAI(openai_api_version=os.environ["AZURE_OPENAI_API_VERSION"], azure_deployment=os.environ["AZURE_OPENAI_DEPLOYMENT_NAME"], temperature = 0)
     # Load and preprocess the dataset from a CSV file.
     df = pd.read_csv('./data/dataset.csv')
     df = df.groupby(['USER_ID', 'FIRST_NAME', 'LAST_NAME', 'EMAIL', 'TRAINING','PRODUCT_NAME_USED', 'RECOMMENDATION', 'FEEDBACK']).aggregate({'TRAINING_COMPLETED':list,
@@ -63,7 +54,6 @@ def main():
         for i,r in df[df['USER_ID']==p].iterrows():
             try:
                 professional_slack_id = get_user_id(p)
-                print(professional_slack_id)
                 professional_email = p
                 professional_first_name = r['FIRST_NAME']
                 professional_last_name = r['LAST_NAME']
@@ -75,8 +65,6 @@ def main():
                 training_not_started = r['TRAINING_NOT_STARTED']
             except:
                 continue
-
-
         config = dict(
             person_name = "Sophia",
             person_role = "To promote new products, features, trainings and gathering feedbacks from accounting professionals",
@@ -87,30 +75,21 @@ def main():
             conversation_stage = conversation_stages.get('1'),
             professional_name = professional_first_name
             )
-    
         # Create and seed the marketing agent.
-        print("Create and seed the marketing agent.")
         marketing_agent = GPT.from_llm(llm, verbose=False, **config)
         marketing_agent.seed_agent()
-
         # Open a conversation channel and send the initial message.
         response = client.conversations_open(users=[professional_slack_id])
-        print(response)
         if response["ok"]:
             channel_id = response["channel"]["id"]
-            latest_message = get_latest_message(channel_id)
-            print(latest_message)
         else:
             raise Exception("Failed to open conversation channel.")
         
-
         sending_message = marketing_agent.step()
-        print(sending_message)
         response = client.chat_postMessage(channel=channel_id, text=sending_message)
         response_count = 0
         # Handle incoming messages and responses.
         start_time = time.time()
-        print(f"start_time is {start_time}")
         while True:
             latest_message = get_latest_message(channel_id)
             m_10 = []
@@ -138,6 +117,7 @@ def main():
                 m['text'] = m['text'].replace(":mag_right:",":magnifying_glass_tilted_right:")
                 m['text'] = m['text'].replace(":mortar_board:",":graduation_cap:")
                 m['text'] = m['text'].replace(":female-student:",":woman_student:")
+                
                 m['text'] = m['text'].replace("&amp;","&")
                 m['text'] = m['text'].replace("<",'')
                 m['text'] = m['text'].replace(">",'')
@@ -170,7 +150,6 @@ def main():
                         print('====================')
                         marketing_agent.human_step(latest_text)
                         if marketing_agent.determine_conversation_stage().split(':')[0]!='End conversation':
-                            print(f"marketing_agent.determine_conversation_stage().split(':')[0] is here1 {marketing_agent.determine_conversation_stage().split(':')[0]}")
                             sending_message = marketing_agent.step()
                             response = client.chat_postMessage(channel=channel_id, text=sending_message)
                         elif marketing_agent.determine_conversation_stage().split(':')[0]=='End conversation':
@@ -184,7 +163,6 @@ def main():
                         print('====================')
                         marketing_agent.human_step(latest_text)
                         if marketing_agent.determine_conversation_stage().split(':')[0]!='End conversation':
-                            print(f"marketing_agent.determine_conversation_stage().split(':')[0] is here2 {marketing_agent.determine_conversation_stage().split(':')[0]}")
                             sending_message = marketing_agent.step()
                             response = client.chat_postMessage(channel=channel_id, text=sending_message)
                             print(f'{professional_first_name} not completed the conversation')
@@ -192,7 +170,6 @@ def main():
                         elif marketing_agent.determine_conversation_stage().split(':')[0]=='End conversation':
                             break
         
-        print(f"marketing_agent.get_conversation_history_backup() {marketing_agent.get_conversation_history_backup()}")
         conversation_history_backup = marketing_agent.get_conversation_history_backup()          
         conversation_history_backup_summary = []
         for h in conversation_history_backup:
@@ -217,7 +194,6 @@ def main():
             )
         
         for observation in conversation_history_backup_summary:
-            print("observation, {observation} ")
             lucas.memory.add_memory(observation)
         
         docs = lucas.memory.memory_retriever.memory_stream
@@ -239,12 +215,8 @@ def main():
         chain = load_summarize_chain(llm, chain_type="stuff")
         summary = chain.run(docs)
         # Replace name_place_holder and channelID_place_holder with your own data/text
-        name_place_holder = "Ved Prakash"
-        PM_email = "thevedprakash.in@gmail.com"
-        channelID_place_holder =  get_user_id(PM_email) 
         sending_message_summary = f"Hi {name_place_holder}, Below is the summary conversation happened with {professional_first_name} {professional_last_name}\n==========\n{summary}\n==========="
-        print(f"message summary sent to PM is {sending_message_summary}")
-        response = client.chat_postMessage(channel=channelID_place_holder, text=sending_message_summary)
+        response = client.chat_postMessage(channel={channelID_place_holder}, text=sending_message_summary)
         
 
 if __name__ == "__main__":

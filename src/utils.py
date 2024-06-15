@@ -29,8 +29,8 @@ def create_new_memory_retriever():
     Returns:
         TimeWeightedVectorStoreRetriever: Configured retriever ready for use with embedded data.
     """
-    embeddings_model = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
-    embeddings_size =  1536
+    embeddings_model = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
+    embeddings_size =  768
     index = faiss.IndexFlatL2(embeddings_size)
     vectorstore = FAISS(embeddings_model, index, InMemoryDocstore({}), {}, relevance_score_fn=relevance_score_fn)
     return TimeWeightedVectorStoreRetriever(vectorstore=vectorstore, other_score_keys=["importance"], k=15) 

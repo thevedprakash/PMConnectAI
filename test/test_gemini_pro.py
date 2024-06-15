@@ -1,12 +1,13 @@
 import pathlib
 import textwrap
+import os
 # pip3 install -U google-generativeai requests python-dotenv
 import google.generativeai as genai
 
 
 model = genai.GenerativeModel('gemini-pro')
 
-GOOGLE_API_KEY = "AIzaSyB7j5uToEIVjD6F-MumQqivjUC4IW-bw3Y"
+GOOGLE_API_KEY =  os.getenv("GOOGLE_API_KEY")
 
 genai.configure(api_key=GOOGLE_API_KEY)
 

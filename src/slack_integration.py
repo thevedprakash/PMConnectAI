@@ -43,8 +43,6 @@ def get_latest_message(channel_id, retry_attempts=5, timeout=3):
     """
     attempt = 0
     while attempt < retry_attempts:
-        print(f"attempt count : {attempt}")
-        print(time.time)
         try:
             response = client.conversations_history(channel=channel_id, limit=1)
             if response["ok"]:
